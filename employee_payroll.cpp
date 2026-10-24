@@ -1,263 +1,135 @@
-#include <iostream>
 #include <iomanip>
+#include <iostream>
 #include <string>
-#include <limits>
 
 using namespace std;
 
-// Abstract base class
+// Abstraction and encapsulation
 class Employee {
-private:
+    static int nextId;
     int id;
     string name;
-    double hoursWorked;
-    double taxRate;
+    double hours;
 
 protected:
-    void printCommonDetails() const {
-        cout << "ID: " << id << endl;
-        cout << "Name: " << name << endl;
-        cout << "Hours Worked: " << hoursWorked << endl;
-        cout << "Bonus: Rs. " << calculateBonus() << endl;
+    double workedHours() const { return hours; }
+    virtual double basePay() const = 0;
+    void commonDetails() const {
+        cout << "ID: " << id << "\nName: " << name << "\nHours Worked: " << hours
+             << "\nBonus Rate: " << bonusRate() * 100 << "%\nBonus: Rs. " << bonus() << '\n';
     }
 
 public:
-    static constexpr double REGULAR_HOURS = 160.0;
-    static constexpr double BONUS_PER_EXTRA_HOUR = 10.0;
-
-    Employee(int employeeId, const string& employeeName,
-             double hours, double employeeTaxRate)
-        : id(employeeId),
-          name(employeeName),
-          hoursWorked(hours),
-          taxRate(employeeTaxRate) {}
-
+    Employee(const string& name, double hours) : id(nextId++), name(name), hours(hours) {}
     virtual ~Employee() {}
 
-    string getName() const {
-        return name;
-    }
+    string getName() const { return name; }
+    double getHours() const { return hours; }
+    double bonusRate() const { return hours <= 15 ? .05 : hours <= 31 ? .10 : hours <= 47 ? .15 : hours <= 63 ? .20 : .25; }
+    double bonus() const { return basePay() * bonusRate(); }
 
-    double getHoursWorked() const {
-        return hoursWorked;
-    }
-
-    double calculateBonus() const {
-        if (hoursWorked > REGULAR_HOURS) {
-            return (hoursWorked - REGULAR_HOURS)
-                   * BONUS_PER_EXTRA_HOUR;
-        }
-
-        return 0;
-    }
-
-    double calculateTax() const {
-        return calculateGrossPay() * taxRate;
-    }
-
-    double calculateNetPay() const {
-        return calculateGrossPay() - calculateTax();
-    }
-
-    virtual double calculateGrossPay() const = 0;
+    virtual double grossPay() const = 0;
     virtual void displayPaySlip() const = 0;
 };
 
-// Full-time employee
+int Employee::nextId = 1001;
+
+// Inheritance
 class FullTimeEmployee : public Employee {
-private:
-    double monthlySalary;
+    double salary;
 
 public:
-    FullTimeEmployee(int id, const string& name,
-                     double salary, double hours)
-        : Employee(id, name, hours, 0.10),
-          monthlySalary(salary) {}
+    FullTimeEmployee(const string& name, double hours, double salary)
+        : Employee(name, hours), salary(salary) {}
 
-    double calculateGrossPay() const override {
-        return monthlySalary + calculateBonus();
-    }
-
+    double basePay() const override { return salary; }
+    double grossPay() const override { return basePay() + bonus(); }
     void displayPaySlip() const override {
         cout << "\n========== Full-Time Employee ==========\n";
-
-        printCommonDetails();
-
-        cout << "Monthly Salary: Rs. " << monthlySalary << endl;
-        cout << "Gross Pay: Rs. " << calculateGrossPay() << endl;
-        cout << "Tax: Rs. " << calculateTax() << endl;
-        cout << "Net Pay: Rs. " << calculateNetPay() << endl;
+        commonDetails();
+        cout << "Monthly Salary: Rs. " << salary << "\nFinal Pay: Rs. " << grossPay() << '\n';
     }
 };
 
-// Part-time employee
 class PartTimeEmployee : public Employee {
-private:
-    double hourlyRate;
+    double rate;
 
 public:
-    PartTimeEmployee(int id, const string& name,
-                     double hours, double rate)
-        : Employee(id, name, hours, 0.05),
-          hourlyRate(rate) {}
+    PartTimeEmployee(const string& name, double hours, double rate)
+        : Employee(name, hours), rate(rate) {}
 
-    double calculateGrossPay() const override {
-        return (getHoursWorked() * hourlyRate) + calculateBonus();
-    }
-
+    double basePay() const override { return workedHours() * rate; }
+    double grossPay() const override { return basePay() + bonus(); }
     void displayPaySlip() const override {
         cout << "\n========== Part-Time Employee ==========\n";
-
-        printCommonDetails();
-
-        cout << "Hourly Rate: Rs. " << hourlyRate << endl;
-        cout << "Gross Pay: Rs. " << calculateGrossPay() << endl;
-        cout << "Tax: Rs. " << calculateTax() << endl;
-        cout << "Net Pay: Rs. " << calculateNetPay() << endl;
+        commonDetails();
+        cout << "Hourly Rate: Rs. " << rate << "\nFinal Pay: Rs. " << grossPay() << '\n';
     }
 };
 
-// Payroll manager
+// Polymorphism through Employee pointers
 class Payroll {
-private:
     static const int MAX_EMPLOYEES = 100;
-
     Employee* employees[MAX_EMPLOYEES];
-    int employeeCount;
+    int count;
 
 public:
-    Payroll() : employeeCount(0) {}
+    Payroll() : count(0) {}
+    ~Payroll() { for (int i = 0; i < count; ++i) delete employees[i]; }
 
-    ~Payroll() {
-        for (int i = 0; i < employeeCount; i++) {
-            delete employees[i];
-        }
-    }
-
-    bool addEmployee(Employee* employee) {
-        if (employeeCount >= MAX_EMPLOYEES) {
-            delete employee;
-            return false;
-        }
-
-        employees[employeeCount] = employee;
-        employeeCount++;
-
+    bool add(Employee* employee) {
+        if (count == MAX_EMPLOYEES) { delete employee; return false; }
+        employees[count++] = employee;
         return true;
     }
 
-    void displayAllPaySlips() const {
-        if (employeeCount == 0) {
-            cout << "\nNo employees found.\n";
-            return;
-        }
-
-        for (int i = 0; i < employeeCount; i++) {
-            employees[i]->displayPaySlip();
-        }
+    void displayPaySlips() const {
+        if (!count) { cout << "\nNo employees found.\n"; return; }
+        for (int i = 0; i < count; ++i) employees[i]->displayPaySlip();
     }
 
     void displayHoursAndBonuses() const {
-        if (employeeCount == 0) {
-            cout << "\nNo employees found.\n";
-            return;
-        }
-
+        if (!count) { cout << "\nNo employees found.\n"; return; }
         cout << "\n========== Hours and Bonuses ==========\n";
-
-        for (int i = 0; i < employeeCount; i++) {
-            cout << "Employee: " << employees[i]->getName() << endl;
-            cout << "Hours Worked: "
-                 << employees[i]->getHoursWorked() << endl;
-            cout << "Bonus: Rs. "
-                 << employees[i]->calculateBonus() << endl;
-            cout << "---------------------------------------\n";
-        }
+        for (int i = 0; i < count; ++i)
+            cout << employees[i]->getName() << " | Hours: " << employees[i]->getHours()
+                 << " | Bonus: Rs. " << employees[i]->bonus() << '\n';
     }
 };
 
+void menu() {
+    cout << "\n========== Employee Payroll System =========="
+         << "\n1. Add Full-Time Employee\n2. Add Part-Time Employee"
+         << "\n3. Display All Pay Slips\n4. Display Hours Worked and Bonuses\n5. Exit\n";
+}
+
 int main() {
     Payroll payroll;
-    int choice;
-
     cout << fixed << setprecision(2);
 
-    do {
-        cout << "\n========== Employee Payroll System ==========\n";
-        cout << "1. Add Full-Time Employee\n";
-        cout << "2. Add Part-Time Employee\n";
-        cout << "4. Display All Pay Slips\n";
-        cout << "5. Display Hours Worked and Bonuses\n";
-        cout << "0. Exit\n";
+    for (int choice; ; ) {
+        menu();
         cout << "Enter your choice: ";
         cin >> choice;
+        if (choice == 5) break;
 
-        if (choice == 1) {
-            int id;
-            string name;
-            double salary;
-            double hours;
+        if (choice == 1 || choice == 2) {
+            string name; double hours, pay;
+            cout << "Name: "; getline(cin >> ws, name);
+            cout << "Hours worked: "; cin >> hours;
+            cout << (choice == 1 ? "Monthly salary (Rs.): " : "Hourly rate (Rs.): "); cin >> pay;
 
-            cout << "Enter employee ID: ";
-            cin >> id;
-
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-
-            cout << "Enter employee name: ";
-            getline(cin, name);
-
-            cout << "Enter monthly salary in rupees: ";
-            cin >> salary;
-
-            cout << "Enter hours worked: ";
-            cin >> hours;
-
-            payroll.addEmployee(
-                new FullTimeEmployee(id, name, salary, hours)
-            );
-
-            cout << "Full-time employee added successfully.\n";
-        }
-        else if (choice == 2) {
-            int id;
-            string name;
-            double hours;
-            double rate;
-
-            cout << "Enter employee ID: ";
-            cin >> id;
-
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-
-            cout << "Enter employee name: ";
-            getline(cin, name);
-
-            cout << "Enter hours worked: ";
-            cin >> hours;
-
-            cout << "Enter hourly rate in rupees: ";
-            cin >> rate;
-
-            payroll.addEmployee(
-                new PartTimeEmployee(id, name, hours, rate)
-            );
-
-            cout << "Part-time employee added successfully.\n";
-        }
-        else if (choice == 4) {
-            payroll.displayAllPaySlips();
-        }
-        else if (choice == 5) {
+            bool added = choice == 1
+                ? payroll.add(new FullTimeEmployee(name, hours, pay))
+                : payroll.add(new PartTimeEmployee(name, hours, pay));
+            cout << (added ? "Employee added successfully.\n" : "Employee limit reached.\n");
+        } else if (choice == 3) {
+            payroll.displayPaySlips();
+        } else if (choice == 4) {
             payroll.displayHoursAndBonuses();
-        }
-        else if (choice == 0) {
-            cout << "Exiting program...\n";
-        }
-        else {
+        } else {
             cout << "Invalid choice.\n";
         }
-
-    } while (choice != 0);
-
-    return 0;
+    }
+    cout << "Exiting program...\n";
 }
